@@ -1,0 +1,14 @@
+metadata_version: 1
+name: Using Machine Learning to Detect Liquidity Risk In Commercial Banks
+description: This study category is "Applied Machine Learning in Banking Risk Management".  It
+  supplements Liquidity Risk (LR) frameworks with a Machine Learning alternative that
+  improved LR analysis in connection to credit quality, strategies of funding and
+  asset allocation, and market condition. It also exhibited higher resilience to data
+  integrity. challenges
+authors:
+- name: Rweyemamu Ignatius Barongo
+  affiliations:
+  - name: Bank of Tanzania (Tanzania)
+corresponding_contributor:
+  name: Rweyemamu Ignatius Barongo
+  email: rbarongo@gmail.com

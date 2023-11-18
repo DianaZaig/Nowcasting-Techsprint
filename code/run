@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -ex
+
+# This is the master script for the capsule. When you click "Reproducible Run"
+
+#Install dependancies
+python3 preparation.py
+
+#Run data processing
+python3 Prog_I_Building_Dataset_From_Collected_Data.py
+python3 Prog_II_Factor_Analysis_and_Feature_Selection.py
+python3 Prog_III_Model_Building_and_Evaluation.py
+
+
+
