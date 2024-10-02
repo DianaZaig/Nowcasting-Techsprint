@@ -245,6 +245,33 @@ class TFT(BaseEstimator, RegressorMixin):
             last_avail_dates = add_lastdate(last_avail_dates, pd.offsets.YearEnd(1), newcol="YE")
         self.last_avail_dates_ = last_avail_dates
 
+    def _prepare_pred_data(self, X, y):
+        pred_data = {"X_hist": {}, "X_fut": {}, "y": y}
+        for Xk, Xv in X.items():
+            pred_data["X_hist"][Xk] = []
+            for y_date in y.index:
+                date_lim = self.last_avail_dates_[f"LastAvail{Xk}"][y_date]
+                try:
+                    to_pad = Xv[:date_lim].values
+                except KeyError:
+                    to_pad = np.zeros((1, 1))
+                pred_data["X_hist"][Xk].append(to_pad)
+            pred_data["X_hist"][Xk] = keras.utils.pad_sequences(pred_data["X_hist"][Xk], maxlen=self.lags[Xk], dtype=np.float32)
+
+            if self.freq_rank[Xk] > self.freq_rank[self.y_freq_]:
+                pred_data["X_fut"][Xk] = []    
+                for y_date in y.index:
+                    date_lim = self.last_avail_dates_[f"LastAvail{Xk}"][y_date]
+                    date_lim_ydata = self.last_avail_dates_[f"LastAvail{self.y_freq_}"][y_date]
+                    if date_lim_ydata < y_date:
+                        try:
+                            to_pad = Xv[date_lim_ydata:y_date][1:].values
+                        except KeyError:
+                            to_pad = np.zeros((1, 1))
+                        pred_data["X_fut"][Xk].append(to_pad)
+                pred_data["X_fut"][Xk] = keras.utils.pad_sequences(pred_data["X_fut"][Xk], padding="post", maxlen=self.nowcasting_steps_, dtype=np.float32)
+        return pred_data
+
     def _organise_data(self, X, y):
         fit_data = {}
         for fold in self.split_idx_.keys():
@@ -359,9 +386,14 @@ class TFT(BaseEstimator, RegressorMixin):
             
     def predict(self, X, y):
         # unlike typical models, in `predict` we need the `y` data as well because the lags of this variable are incorporated in the covariate space
-        pred_data = self._organise_data(X=X, y=y)
-        fold = "fold_4" # TODO: this is not ideal because in pred time it should use all data, should adjust that in `_organise_data`
-        pred = self.model.predict([pred_data[fold]["train"]["X_hist"], pred_data[fold]["train"]["X_fut"]])
+        y_df = y[self.y_freq_]
+        resampled_y_df = y_df if list(y.keys())[0] == self.highest_freq_X_ else y_df.resample(self.highest_freq_X_).bfill()
+        pred_data = self._prepare_pred_data(X=X, y=resampled_y_df)
+        for k, v in pred_data["X_hist"].items():
+            print(k, v.shape)
+        for k, v in pred_data["X_fut"].items():
+            print(k, v.shape)
+        pred = self.model.predict([pred_data["X_hist"], pred_data["X_fut"]])
         return pred
 
     def fit_predict(self, X, y):
