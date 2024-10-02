@@ -223,8 +223,8 @@ class TFT(BaseEstimator, RegressorMixin):
 
         return final_loss
 
-    def _add_last_avail_date(self):
-        last_avail_dates = pd.DataFrame(index=resampled_y_df.index)
+    def _add_last_avail_date(self, y_index):
+        last_avail_dates = pd.DataFrame(index=y_index)
         def add_lastdate(df, offset_func, newcol=None):
             new_df = pd.concat([
                 df,
@@ -306,7 +306,7 @@ class TFT(BaseEstimator, RegressorMixin):
         # this step finds, for each nowcasting time period (remember: measured at the highest possible frequency), the last available date for the lower frequencies
         #leq_freq_X = self._leq_freq(X.keys(), y.keys()) # for ME in all_freqs...
         self.data_freqs_ = list(X.keys()) + list(y.keys())
-        self._add_last_avail_date()
+        self._add_last_avail_date(y_index=resampled_y_df.index)
 
         # now the `resampled_y_df` dates are split into different validation folds
         self.split_idx_ = {f"fold_{i}": {"train": train, "valid": test} for i, (train, test) in enumerate(self.tscv.split(resampled_y_df.index))}
