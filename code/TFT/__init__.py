@@ -3,6 +3,7 @@ os.environ["KERAS_BACKEND"] = "tensorflow" # or "torch", "jax" according to user
 import keras
 import numpy as np
 import pandas as pd
+import pickle
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.base import BaseEstimator, RegressorMixin
 
@@ -151,7 +152,6 @@ class TFT(BaseEstimator, RegressorMixin):
             hist_LSTM = hist_LSTMs[self.highest_freq_X_]
 
         # for the future data, we use only the highest frequency time series, which is the same as the data being outputted
-
 
         future_dec = {
             k: keras.layers.LSTM(units=self.d_model, return_sequences=True, return_state=False, name=f"LSTMDecoder__freq_{k}")(v, initial_state=[state_h, state_c])
@@ -388,7 +388,16 @@ class TFT(BaseEstimator, RegressorMixin):
         # unlike typical models, in `predict` we need the `y` data as well because the lags of this variable are incorporated in the covariate space
         y_df = y[self.y_freq_]
         resampled_y_df = y_df if list(y.keys())[0] == self.highest_freq_X_ else y_df.resample(self.highest_freq_X_).bfill()
+        
+        # the lagged `y` data is also used as explanatory variable, so it needs to be concatenated to that, according to the corresponding frequency
+        for yk, yv in y.items():
+            if yk in X:
+                X[yk] = pd.concat([X[yk], yv], axis=1)
+            else:
+                X[yk] = yv
+        
         pred_data = self._prepare_pred_data(X=X, y=resampled_y_df)
+       
         for k, v in pred_data["X_hist"].items():
             print(k, v.shape)
         for k, v in pred_data["X_fut"].items():
@@ -398,7 +407,7 @@ class TFT(BaseEstimator, RegressorMixin):
 
     def fit_predict(self, X, y):
         self.fit(X=X, y=y)
-        return self.predict(X=X)
+        return self.predict(X=X, y=y)
 
     def document(self):
         # TODO: implement automatic documentation using gingado's forecastmodel card
