@@ -252,7 +252,7 @@ class TFT(BaseEstimator, RegressorMixin):
         for fold in self.split_idx_.keys():
             fit_data[fold] = {}
             for chunk in ["train", "valid"]:
-                fit_data[fold][chunk] = {"X_hist": {}, "X_fut": {}, "y": y.iloc[tft.split_idx_[fold][chunk]]}
+                fit_data[fold][chunk] = {"X_hist": {}, "X_fut": {}, "y": y.iloc[self.split_idx_[fold][chunk]]}
                 for Xk, Xv in X.items():
                     fit_data[fold][chunk]["X_hist"][Xk] = []
                     for y_date in y.index[self.split_idx_[fold][chunk]]:
@@ -376,7 +376,7 @@ class TFT(BaseEstimator, RegressorMixin):
     
     def summary(self):
         if not hasattr(self, "model"):
-            self.model = self._build_tft_model()
+            self.model = self._build_model()
         self.model.summary()
 
     def plot_model(self, show_shapes=True, show_layer_names=True, show_layer_activations=True):
