@@ -121,10 +121,6 @@ class TFT(BaseEstimator, RegressorMixin):
             hist_states_h[k] = state_h
             hist_states_c[k] = state_c
 
-        print("hist LSTM SHAPES:")
-        for k, v in hist_LSTMs.items():
-            print(f"{k}: {v.shape}")
-
         # combine nonlinearly the states (at the end of historical series) from the different frequencies
         state_h = keras.ops.concatenate([v for v in hist_states_h.values()], axis=-1) if len(hist_states_h.keys()) > 1 else list(hist_states_h.values())[0]
         state_h = keras.layers.Dense(units=self.d_model, activation="sigmoid")(state_h)
@@ -198,9 +194,7 @@ class TFT(BaseEstimator, RegressorMixin):
             # Expand delta along the quantile axis and sum with the expanded lowest quantile
             #delta_expanded = keras.ops.expand_dims(delta, axis=-1)  # Shape: (samples, time, nowcasting_steps, 1)
             quantile_outputs.append(output_lowest_quant + delta)
-        print(f"SHAPE OF QOUT: {output_lowest_quant.shape, [i.shape for i in quantile_outputs]}")
         outputs = keras.ops.concatenate(quantile_outputs, axis=-1)
-        print(f"SHAPE OF OUTPUTS: {outputs.shape}")
         model = keras.Model(inputs=[hist_inputs, fut_inputs], outputs=outputs)
         model.compile(**self.compile_args, loss=self.quantile_loss)
         return model
