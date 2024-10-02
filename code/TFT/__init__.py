@@ -3,6 +3,7 @@ os.environ["KERAS_BACKEND"] = "tensorflow" # or "torch", "jax" according to user
 import keras
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.base import BaseEstimator, RegressorMixin
 
 class TFT(BaseEstimator, RegressorMixin):
