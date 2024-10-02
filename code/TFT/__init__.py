@@ -108,7 +108,7 @@ class TFT(BaseEstimator, RegressorMixin):
         }
 
         higher_freqs = [k for k in list(hist_inputs.keys()) if self.freq_rank[k] > self.freq_rank[self.y_freq_]]
-        fut_inputs = {k: keras.layers.Input(shape=(None, 1), name=f"FutInput__freq_{k}") for k in higher_freqs}
+        fut_inputs = {k: keras.layers.Input(shape=(None, self.n_features_in_[self.highest_freq_X_]), name=f"FutInput__freq_{k}") for k in higher_freqs}
 
         #<temp LSTM>
         hist_LSTMs = {}
@@ -120,6 +120,10 @@ class TFT(BaseEstimator, RegressorMixin):
             hist_LSTMs[k] = lstm
             hist_states_h[k] = state_h
             hist_states_c[k] = state_c
+
+        print("hist LSTM SHAPES:")
+        for k, v in hist_LSTMs.items():
+            print(f"{k}: {v.shape}")
 
         # combine nonlinearly the states (at the end of historical series) from the different frequencies
         state_h = keras.ops.concatenate([v for v in hist_states_h.values()], axis=-1) if len(hist_states_h.keys()) > 1 else list(hist_states_h.values())[0]
