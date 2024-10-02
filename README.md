@@ -28,6 +28,16 @@ Some notation:
 
 6. **Quantile output**: the steps of the output from the transformer layer that correspond to the future data are then used to create one output for each quantile
 
+### Dates
+
+Unlike most traditional machine learning methods that involve time series (eg, texts, videos or audio), in economics and finance *dates* are very important. 
+
+Dates have different frequencies: daily, weekly, monthly, etc. (In fact, there is much more complexity - eg, business days, etc but this is abstracted for now.)
+
+In addition, the different date subdivisions have unequal lengths, for example. And many economic data depend on these fixed periods, 
+
+MF-TFT accommodates this by filtering data according to dates, not to number of time steps.
+
 ### Usage 
 
 ```
