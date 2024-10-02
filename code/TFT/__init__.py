@@ -293,7 +293,7 @@ class TFT(BaseEstimator, RegressorMixin):
         # now we resample `y` such that we are repeating it at the highest possible frequency; each such repetition will become the basis of the nowcast
         # in other words, the final transformer layer should 
         y_df = y[self.y_freq_]
-        resampled_y_df = y_df if list(y.keys())[0] == self.highest_freq_X_ else y_df.resample(highest_freq_X).bfill()
+        resampled_y_df = y_df if list(y.keys())[0] == self.highest_freq_X_ else y_df.resample(self.highest_freq_X_).bfill()
         self.resampled_y_dates = resampled_y_df.index
         self.num_encoder_steps = self.lags[self.highest_freq_X_]
         self.nowcasting_steps_ = self._count_nowcasting_days(self.highest_freq_X_, list(y.keys())[0])
