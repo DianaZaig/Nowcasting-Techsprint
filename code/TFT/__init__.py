@@ -246,7 +246,7 @@ class TFT(BaseEstimator, RegressorMixin):
         self.last_avail_dates_ = last_avail_dates
 
     def _prepare_pred_data(self, X, y):
-        pred_data = {"X_hist": {}, "X_fut": {}, "y": y}
+        pred_data = {"X_hist": {}, "X_fut": {}, "X_fut_dates": {}, "y": y}
         for Xk, Xv in X.items():
             pred_data["X_hist"][Xk] = []
             for y_date in y.index:
@@ -260,15 +260,17 @@ class TFT(BaseEstimator, RegressorMixin):
 
             if self.freq_rank[Xk] > self.freq_rank[self.y_freq_]:
                 pred_data["X_fut"][Xk] = []    
+                pred_data["X_fut_dates"][Xk] = {}
                 for y_date in y.index:
                     date_lim = self.last_avail_dates_[f"LastAvail{Xk}"][y_date]
-                    date_lim_ydata = self.last_avail_dates_[f"LastAvail{self.y_freq_}"][y_date]
-                    if date_lim_ydata < y_date:
-                        try:
-                            to_pad = Xv[date_lim_ydata:y_date][1:].values
-                        except KeyError:
-                            to_pad = np.zeros((1, 1))
-                        pred_data["X_fut"][Xk].append(to_pad)
+                    try:
+                        to_pad = Xv[y_date:][1:].values
+                        to_pad_dates = Xv[y_date:][1:].index
+                    except KeyError:
+                        to_pad = np.zeros((1, 1))
+                        to_pad_dates = np.zeros((1, 1))
+                    pred_data["X_fut"][Xk].append(to_pad)
+                    pred_data["X_fut_dates"][Xk][y_date] = to_pad_dates
                 pred_data["X_fut"][Xk] = keras.utils.pad_sequences(pred_data["X_fut"][Xk], padding="post", maxlen=self.nowcasting_steps_, dtype=np.float32)
         return pred_data
 
@@ -281,6 +283,9 @@ class TFT(BaseEstimator, RegressorMixin):
                 for Xk, Xv in X.items():
                     fit_data[fold][chunk]["X_hist"][Xk] = []
                     for y_date in y.index[self.split_idx_[fold][chunk]]:
+                        # for each date in `y`, the code below finds the date of the most recently available explanatory variables, and collects data up until those dates.
+                        # for example, in 3 Nov, the last available monthly data is 31 Oct and the last available quarterly data is 30 Sept.
+                        # then, only data up
                         date_lim = self.last_avail_dates_[f"LastAvail{Xk}"][y_date]
                         try:
                             to_pad = Xv[:date_lim].values
@@ -397,17 +402,14 @@ class TFT(BaseEstimator, RegressorMixin):
                 X[yk] = yv
         
         pred_data = self._prepare_pred_data(X=X, y=resampled_y_df)
-       
-        for k, v in pred_data["X_hist"].items():
-            print(k, v.shape)
-        for k, v in pred_data["X_fut"].items():
-            print(k, v.shape)
         pred = self.model.predict([pred_data["X_hist"], pred_data["X_fut"]])
-        return pred
+        return pred, pred_data["X_fut_dates"]
 
     def fit_predict(self, X, y):
+        self.model = None
         self.fit(X=X, y=y)
-        return self.predict(X=X, y=y)
+        pred = self.predict(X=X, y=y)
+        return pred
 
     def document(self):
         # TODO: implement automatic documentation using gingado's forecastmodel card
