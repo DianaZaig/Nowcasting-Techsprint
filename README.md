@@ -87,3 +87,13 @@ Identifying sudden changes in temporal patterns can also be very useful, as temp
 ### Conclusions 
 
 We introduce TFT, a novel attention-based deep learning model for interpretable high-performance multi-horizon forecasting. To handle static covariates, a priori known inputs, and observed inputs effectively across a wide range of multi-horizon forecasting datasets, TFT uses specialized components. Specifically, these include: (1) sequence-to-sequence and attention-based temporal processing components that capture time-varying relationships at different timescales, (2) static covariate encoders that allow the network to condition temporal forecasts on static metadata, (3) gating components that enable skipping over unnecessary parts of the network, (4) variable selection to pick relevant input features at each time step, and (5) quantile predictions to obtain output intervals across all prediction horizons.
+
+### References
+
+1. Temporal Fusion Transformer (TFT; Lim et al, 2021) https://www.sciencedirect.com/science/article/pii/S0169207021000637
+2. Temporal Fusion Transformers for Interpretable Multi-horizon Time Series Forecasting - https://www.youtube.com/watch?v=M7O4VqRf8s4
+3. Interactive Python Notebook as a practical intro to the Lim et al TFT model:  https://github.com/dkgaraujo/TemporalFusionTransformers/blob/main/temporal_fusion_transformers.ipynb
+4. Using machine learning for detecting liquidity risk in banks – ScienceDirect https://www.sciencedirect.com/science/article/pii/S2666827023000646?via%3Dihub#sec6
+5. Using Machine Learning to Detect Liquidity Risk In Commercial Banks | Code Ocean https://codeocean.com/capsule/5775871/tree/v1
+6. Gringado machine learning library for economics and finance https://bis-med-it.github.io/gingado
+
