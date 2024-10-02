@@ -260,7 +260,6 @@ class TFT(BaseEstimator, RegressorMixin):
 
             if self.freq_rank[Xk] > self.freq_rank[self.y_freq_]:
                 pred_data["X_fut"][Xk] = []    
-                pred_data["X_fut_dates"][Xk] = {}
                 for y_date in y.index:
                     date_lim = self.last_avail_dates_[f"LastAvail{Xk}"][y_date]
                     try:
@@ -270,7 +269,8 @@ class TFT(BaseEstimator, RegressorMixin):
                         to_pad = np.zeros((1, 1))
                         to_pad_dates = np.zeros((1, 1))
                     pred_data["X_fut"][Xk].append(to_pad)
-                    pred_data["X_fut_dates"][Xk][y_date] = to_pad_dates
+                    if Xk == self.highest_freq_X_:
+                        pred_data["X_fut_dates"][y_date] = to_pad_dates[:self.nowcasting_steps_]
                 pred_data["X_fut"][Xk] = keras.utils.pad_sequences(pred_data["X_fut"][Xk], padding="post", maxlen=self.nowcasting_steps_, dtype=np.float32)
         return pred_data
 
@@ -403,6 +403,7 @@ class TFT(BaseEstimator, RegressorMixin):
         
         pred_data = self._prepare_pred_data(X=X, y=resampled_y_df)
         pred = self.model.predict([pred_data["X_hist"], pred_data["X_fut"]])
+
         return pred, pred_data["X_fut_dates"]
 
     def fit_predict(self, X, y):
