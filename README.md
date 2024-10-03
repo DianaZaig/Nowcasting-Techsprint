@@ -38,7 +38,21 @@ In addition, the different date subdivisions have unequal lengths, for example. 
 
 MF-TFT accommodates this by filtering data according to dates, not to number of time steps.
 
+### Entity encoding
+
+In economics and finance practice, often the only dimension that is "static" in panel data settings is the *entity* identification (country, bank, firm, household, etc). 
+
+Based on this, the MF-TFT simplifies the original TFT architecture by avoiding static variable selection altogether, since it assumes there is only one such static variable.
+
+This also enables a simplified API for the user. There is no need to prepare and pass to `fit` a separate set of static data with their vocabulary sizes (a technicality needed to embed categorical variables). As long as the `y` variable is a pandas DataFrame, its columns will be considered as the entity dimension.
+
+This simplification does not mean the model provides less insights. In addition to helping select the input (time-varying) covariates for each entity's case, MF-TFT stores the entity embeddings. 
+
+These embeddings can serve as input in analyses that are interesting in their own right. For example, the user can compare the embeddings to see which entities tend to react similarly to the same variables. For financial supervision, this can be an useful input for benchmarking.
+
 ### Usage 
+
+Creating and fitting the model:
 
 ```
 model = TFT()
@@ -46,6 +60,32 @@ model.fit(
     x={"D": df_daily, "ME": df_monthly, "QE": df_quarterly},
     y={"ME": df_dependent}
 )
+```
+
+Using a fitted model to predict (note that `y` also needs to be passed due to how the model combines the data internally):
+
+```
+pred = model.predict(
+    x={"D": df_daily, "ME": df_monthly, "QE": df_quarterly},
+    y={"ME": df_dependent}
+)
+
+date_idx = tft.pred_dates[list(tft.pred_dates.keys())[-1]]
+df_pred = pd.DataFrame(pred[-1,:,:], index=date_idx)
+df_pred.columns = ["Q10", "Q50", "Q90"]
+df_pred.plot()
+```
+
+Extracting variable weights:
+
+```
+tft.var_weights_
+```
+
+Comparing entities:
+
+```
+tft.entities
 ```
 
 ### Data
