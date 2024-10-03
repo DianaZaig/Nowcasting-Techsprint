@@ -110,7 +110,32 @@ The input variables are split by the frequency, the *monthly* data is as follows
 
 The *weekly* data is as follwos:
 
-1 INSTITUTIONCODE 2 REPORTINGDATE 3 DESC_NO 4 ASSET_AMOUNT 5 LIABILITY_AMT
+                    01_CURR_ACC", 
+                    2: "02_TIME_DEPOSIT",
+                    3: "03_SAVINGS",
+                    4: "04_OTHER_DEPOSITS",
+                    5: "05_BANKS_DEPOSITS",
+                    6: "06_BORROWING_FROM_PUBLIC",
+                    7: "07_INTERBANKS_LOAN_PAYABLE",
+                    8: "08_CHEQUES_ISSUED",
+                    9: "09_PAY_ORDERS",
+                    10:"10_FOREIGN_DEPOSITS_AND_BORROWINGS",
+                    11:"11_OFF_BALSHEET_COMMITMENTS",
+                    12:"12_OTHER_LIABILITIES",
+                    13:"13_CASH",
+                    14:"14_CURRENT_ACC",
+                    15:"15_SMR_ACC",
+                    16:"16_FOREIGN CURRENCY",
+                    17:"17_OTHER DEPOSITS",
+                    18:"18_BANKS_TZ",
+                    19:"19_BANKS_ABROAD",
+                    20:"20_CHEQUES_ITEMS_FOR_CLEARING",
+                    21:"21_INTERBANK_LOANS",
+                    22:"22_TREASURY_BILLS",
+                    23:"23_OTHER_GOV_SECURITIES",
+                    24:"24_FOREIGN_CURRENCY",
+                    25:"25_COMMERCIAL_BILLS",
+                    26:"26_PROMISSORY_NOTES"
 
 ### Benchmarking
 
