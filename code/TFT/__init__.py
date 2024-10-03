@@ -285,7 +285,7 @@ class TFT(BaseEstimator, RegressorMixin):
 
         output_lowest_quant = keras.layers.TimeDistributed(
             keras.layers.Dense(1, activation="sigmoid"),
-            name=f"output_q{str(self.quantiles[0]).replace('.','_')}}"
+            name=f"output_q{str(self.quantiles[0]).replace('.','_')}"
         )(transformer_layer[Ellipsis, self.num_encoder_steps:, :])
 
         output_quant_deltas = [
