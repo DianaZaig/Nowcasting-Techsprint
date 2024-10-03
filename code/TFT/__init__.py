@@ -7,151 +7,105 @@ import pickle
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.base import BaseEstimator, RegressorMixin
 
-class GatedResidualNetwork(keras.layers.Layer):
-    """
-    A Gated Residual Network (GRN) layer for modeling temporal dependencies in sequence data.
 
-    This layer computes a gated residual connection between input and transformed features.
-    
-    Lim, et al. (2021): "Temporal fusion transformers for interpretable multi-horizon time series forecasting",
-    International Journal of Forecasting, v.37, p.1748-1764.
-
-    Attributes:
-    -----------
-    d_model : int, default=16
-        The dimensionality of the embedding space (size of hidden layers).
-    
-    output_size : int, optional
-        The size of the output layer. If None, it defaults to `d_model`.
-
-    dropout_rate : float, optional
-        Dropout rate applied in the gating mechanism. If None, no dropout is applied.
-    
-    use_time_distributed : bool, default=True
-        Whether to apply the `TimeDistributed` wrapper around the dense layers, useful for handling sequences.
-
-    Methods:
-    --------
-    build(input_shape):
-        Creates the layer variables based on the input shape.
-
-    call(inputs, additional_context=None, training=None):
-        Executes the forward pass of the GRN. Optionally incorporates additional context inputs.
-    
-    get_config():
-        Returns the configuration of the layer, useful for saving and loading the model.
-    """
+class ScaledDotProductAttention(keras.Layer):
     def __init__(
-        self, 
-        d_model:int=16, # Embedding size, $d_\text{model}$
-        output_size=None, 
-        dropout_rate=None, 
-        use_time_distributed=True, 
+        self,
+        dropout_rate:float=0.0, # Will be ignored if `training=False`
         **kwargs
     ):
-        """
-        Initializes the GatedResidualNetwork layer.
-
-        Parameters:
-        -----------
-        d_model : int, default=16
-            The dimensionality of the hidden layer and embedding space.
-        
-        output_size : int, optional
-            The output size of the dense layers. Defaults to the same size as `d_model` if None.
-        
-        dropout_rate : float, optional
-            The dropout rate used in the gating mechanism. If None, dropout is not applied.
-        
-        use_time_distributed : bool, default=True
-            If True, applies `TimeDistributed` to the Dense layers, making the layer work with time sequences.
-        
-        **kwargs:
-            Additional keyword arguments passed to the base Keras Layer.
-        """
-
-        super(GatedResidualNetwork, self).__init__(**kwargs)
-        self.d_model = d_model
-        self.output_size = output_size if output_size is not None else d_model
+        super(ScaledDotProductAttention, self).__init__(**kwargs)
         self.dropout_rate = dropout_rate
-        self.use_time_distributed = use_time_distributed
 
     def build(self, input_shape):
-        super(GatedResidualNetwork, self).build(input_shape)
-        self.dense = keras.layers.Dense(self.output_size)
-        self.hidden_dense = keras.layers.Dense(self.d_model)
-        self.hidden_dense_post = keras.layers.Dense(self.d_model)
-        self.hidden_activation = keras.layers.Activation('elu')
-        self.context_dense = keras.layers.Dense(self.d_model, use_bias=False)
-        self.gating_layer = GatedLinearUnit(
-            d_model=self.output_size, 
-            dropout_rate=self.dropout_rate, 
-            use_time_distributed=self.use_time_distributed, 
-            activation=None)
+        super(ScaledDotProductAttention, self).build(input_shape)
+        self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
+        self.activation = keras.layers.Activation('softmax')
+        self.dot_22 = keras.layers.Dot(axes=(2, 2)) # both inputs need to have the same size in their axis=2 dimensions, in this case, d_model for both
+        self.dot_21 = keras.layers.Dot(axes=(2, 1)) # the size of the first input's axis=2 dimension needs to match the size of the second input's axis=1 dimension
+        self.lambda_layer = keras.layers.Lambda(lambda x: (-1e9) * (1. - keras.ops.cast(x, 'float32')))
         self.add = keras.layers.Add()
-        self.l_norm = keras.layers.LayerNormalization()
 
-        if self.use_time_distributed:
-            self.dense = keras.layers.TimeDistributed(self.dense)
-            self.hidden_dense = keras.layers.TimeDistributed(self.hidden_dense)
-            self.context_dense = keras.layers.TimeDistributed(self.context_dense)
-            self.hidden_dense_post = keras.layers.TimeDistributed(self.hidden_dense_post)
+    def call(
+        self,
+        q, # Queries, tensor of shape (?, time, D_model)
+        k, # Keys, tensor of shape (?, time, D_model)
+        v, # Values, tensor of shape (?, time, D_model)
+        mask, # Masking if required (sets Softmax to very large value), tensor of shape (?, time, time)
+        training=None, # Whether the layer is being trained or used in inference
+    ):
+        # returns Tuple (layer outputs, attention weights)
+        scale = keras.ops.sqrt(keras.ops.cast(keras.ops.shape(k)[-1], dtype='float32'))
+        attention = self.dot_22([q, k]) / scale
+        #attention = keras.ops.einsum("bij,bjk->bik", q, keras.ops.transpose(k, axes=(0, 2, 1))) / scale
+        if mask is not None:
+            mmask = self.lambda_layer(mask)
+            attention = self.add([attention, mmask])
+        attention = self.activation(attention)
+        if training:
+            attention = self.dropout(attention)
+        output = self.dot_21([attention, v])
+        #output = keras.ops.einsum("btt,btd->bt", attention, v)
+        return output, attention
 
-    def call(self, inputs, additional_context=None, training=None):
-        """
-        Executes the forward pass of the Gated Residual Network.
+class InterpretableMultiHeadAttention(keras.Layer):
+    def __init__(
+        self,
+        n_head:int=4,
+        d_model:int=16, # Embedding size, $d_\text{model}$
+        dropout_rate:float=0.0, # Will be ignored if `training=False`
+        **kwargs
+    ):
+        super(InterpretableMultiHeadAttention, self).__init__(**kwargs)
+        self.n_head = n_head
+        self.d_model = d_model
+        self.d_qk = self.d_v = d_model // n_head # the original model divides by number of heads
+        self.dropout_rate = dropout_rate
 
-        Parameters:
-        -----------
-        inputs : tensor
-            The input tensor of shape `(batch_size, time_steps, features)` if `use_time_distributed=True`, otherwise `(batch_size, features)`.
-
-        additional_context : tensor, optional
-            An additional tensor that provides contextual information for the layer. Default is None.
-
-        training : bool, optional
-            A flag indicating whether the layer is in training mode or inference mode. Default is None.
-
-        Returns:
-        --------
-        tuple:
-            - GRN: tensor
-                The output of the GRN with residual connection and gating.
-            - gate: tensor
-                The gating signal applied to the hidden state.
-        """
-
-        # Setup skip connection
-        skip = self.dense(inputs) if self.output_size else inputs
+    def build(self, input_shape):
+        super(InterpretableMultiHeadAttention, self).build(input_shape)
         
-        # 1st step: eta2
-        hidden = self.hidden_dense(inputs)
+        # using the same value layer facilitates interpretability
+        vs_layer = keras.layers.Dense(self.d_v, use_bias=False, name="shared_attn_value")
 
-        # Context handling
-        if additional_context is not None:
-            hidden += self.context_dense(additional_context)
+        # creates list of queries, keys and values across heads
+        self.qs_layers = [keras.layers.Dense(self.d_qk) for _ in range(self.n_head)]
+        self.ks_layers = [keras.layers.Dense(self.d_qk) for _ in range(self.n_head)]
+        self.vs_layers = [vs_layer for _ in range(self.n_head)]
 
-        hidden = self.hidden_activation(hidden)
-        hidden = self.hidden_dense_post(hidden)
+        self.attention = ScaledDotProductAttention(dropout_rate=self.dropout_rate)
+        self.w_o = keras.layers.Dense(self.d_model, use_bias=False, name="W_v") # W_v in Eqs. (14)-(16), output weight matrix to project internal state to the original TFT
+        self.dropout = keras.layers.Dropout(self.dropout_rate)
 
-        # 2nd step: eta1 and 3rd step
-        gating_layer, gate = self.gating_layer(hidden)
-        
-        # Final step
-        GRN = self.add([skip, gating_layer])
-        GRN = self.l_norm(GRN)
+    def call(
+        self,
+        q, # Queries, tensor of shape (?, time, d_model)
+        k, # Keys, tensor of shape (?, time, d_model)
+        v, # Values, tensor of shape (?, time, d_model)
+        mask=None, # Masking if required (sets Softmax to very large value), tensor of shape (?, time, time)
+        training=None
+    ):
+        heads = []
+        attns = []
+        for i in range(self.n_head):
+            qs = self.qs_layers[i](q)
+            ks = self.ks_layers[i](q)
+            vs = self.vs_layers[i](v)
+           
+            head, attn = self.attention(qs, ks, vs, mask, training=training)
+            if training:
+                head = self.dropout(head)
+            heads.append(head)
+            attns.append(attn)
+        head = keras.ops.stack(heads) if self.n_head > 1 else heads[0]
+        attn = keras.ops.stack(attns)
 
-        return GRN, gate
+        outputs = keras.ops.mean(head, axis=0) if self.n_head > 1 else head # H_tilde
+        outputs = self.w_o(outputs)
+        if training:
+            outputs = self.dropout(outputs)
 
-    def get_config(self):
-        config = super(GatedResidualNetwork, self).get_config()
-        config.update({
-            'd_model': self.d_model,
-            'output_size': self.output_size,
-            'dropout_rate': self.dropout_rate,
-            'use_time_distributed': self.use_time_distributed
-        })
-        return config
+        return outputs, attn
 
 class TFT(BaseEstimator, RegressorMixin):
     freq_rank = {
@@ -257,10 +211,6 @@ class TFT(BaseEstimator, RegressorMixin):
         higher_freqs = [k for k in list(hist_inputs.keys()) if self.freq_rank[k] > self.freq_rank[self.y_freq_]]
         fut_inputs = {k: keras.layers.Input(shape=(None, self.n_features_in_[self.highest_freq_X_]), name=f"FutInput__freq_{k}") for k in higher_freqs}
 
-        if self.use_static_context:
-            entity_input = keras.layers.Input(shape=(1,), name="Entity", dtype='int32')
-            static_input = keras.layers.Embedding(input_dim=self.n_y_vars_, output_dim=self.d_model, name="EntityEmbedding")(entity_input) 
-
         #<temp LSTM>
         hist_LSTMs = {}
         hist_states_h = {}
@@ -275,14 +225,10 @@ class TFT(BaseEstimator, RegressorMixin):
         # combine nonlinearly the states (at the end of historical series) from the different frequencies
         state_h = keras.ops.concatenate([v for v in hist_states_h.values()], axis=-1) if len(hist_states_h.keys()) > 1 else list(hist_states_h.values())[0]
         state_h = keras.layers.Dense(units=self.d_model, activation="sigmoid")(state_h)
-        # using the entity embedding to inform the temporal encoding
-        state_h += static_input
         
         state_c = keras.ops.concatenate([v for v in hist_states_c.values()], axis=-1) if len(hist_states_c.keys()) > 1 else list(hist_states_c.values())[0]
         state_c = keras.layers.Dense(units=self.d_model, activation="sigmoid")(state_c)
-        # using the entity embedding to inform the temporal encoding
-        state_c += static_input
-        
+
         # combine the frequency time series by encoding the lower frequency LSTM memories into a higher frequency-consistent time series
 
         num_timesteps_transformer = self.lags[self.highest_freq_X_] + self.nowcasting_steps_ # in other words, historical time steps + future time steps, both at the highest frequency
@@ -323,20 +269,29 @@ class TFT(BaseEstimator, RegressorMixin):
         
         num_quantiles = len(self.quantiles)
         
+        # <Transformer>
+
+        # transformer_layer = InterpretableMultiHeadAttention(
+        #     n_head=self.n_head,
+        #     d_model=self.d_model
+        # )(transformer_layer)
+
+        # </Transformer>
+        
         # if self.use_static_context: pass
 
         # Output layers:
         # In order to enforce monotoncity of the quantiles forecast only the lowest quantile from a base forecast layer, and use output_len - 1 additional layers with ReLU activation to produce the difference between the current quantile and the previous one
 
         output_lowest_quant = keras.layers.TimeDistributed(
-            keras.layers.Dense(1),
-            name=f"output_q{str(self.quantiles[0]).replace('.','_')}"
+            keras.layers.Dense(1, activation="sigmoid"),
+            name=f"output_q{str(self.quantiles[0])}"
         )(transformer_layer[Ellipsis, self.num_encoder_steps:, :])
 
         output_quant_deltas = [
             keras.layers.TimeDistributed(
-                keras.layers.Dense(1, activation="relu", use_bias=False),
-                name=f"output_delta_to_q{str(self.quantiles[i+1]).replace('.','_')}"
+                keras.layers.Dense(1, activation="relu", use_bias=True),
+                name=f"output_delta_to_q{str(self.quantiles[i+1])}"
             )(transformer_layer[Ellipsis, self.num_encoder_steps:, :])
             for i in range(num_quantiles - 1)
         ]
@@ -348,10 +303,7 @@ class TFT(BaseEstimator, RegressorMixin):
             #delta_expanded = keras.ops.expand_dims(delta, axis=-1)  # Shape: (samples, time, nowcasting_steps, 1)
             quantile_outputs.append(output_lowest_quant + delta)
         outputs = keras.ops.concatenate(quantile_outputs, axis=-1)
-        all_inputs = [hist_inputs, fut_inputs]
-        if self.n_y_vars_ > 1:
-            all_inputs += [entity_input]
-        model = keras.Model(inputs=all_inputs, outputs=outputs)
+        model = keras.Model(inputs=[hist_inputs, fut_inputs], outputs=outputs)
         model.compile(**self.compile_args, loss=self.quantile_loss)
         return model
 
@@ -476,28 +428,28 @@ class TFT(BaseEstimator, RegressorMixin):
         self.y_freq_ = list(y.keys())[0]
         self.highest_freq_X_ = self._highest_freq(X.keys(), y.keys())
          
-        # find how many `y` variables there are
+        # now we resample `y` such that we are repeating it at the highest possible frequency; each such repetition will become the basis of the nowcast
+        # in other words, the final transformer layer should 
         y_df = y[self.y_freq_]
-
-        # to simplify the model, only include the static context if there is variation
-        self.entities = y_df.columns
-        self.n_y_vars_ = len(y_df.columns)
-        self.use_static_context = True if self.n_y_vars_ > 1 else False
-
-        # resample `y` such that we are repeating it at the highest possible frequency; each such repetition will become the basis of the nowcast    
         resampled_y_df = y_df if list(y.keys())[0] == self.highest_freq_X_ else y_df.resample(self.highest_freq_X_).bfill()
         self.resampled_y_dates = resampled_y_df.index
         self.num_encoder_steps = self.lags[self.highest_freq_X_]
         self.nowcasting_steps_ = self._count_nowcasting_days(self.highest_freq_X_, list(y.keys())[0])
+        
+        # to simplify the model, only include the static context if there is variation
+        entities = resampled_y_df.columns
+        self.use_static_context = True if len(entities) > 1 else False
 
-        # for each nowcasting time period (at the highest possible frequency), find the last available date for the lower frequencies
+        if self.verbose: print("  calculating ...")
+        # this step finds, for each nowcasting time period (remember: measured at the highest possible frequency), the last available date for the lower frequencies
+        #leq_freq_X = self._leq_freq(X.keys(), y.keys()) # for ME in all_freqs...
         self.data_freqs_ = list(X.keys()) + list(y.keys())
         self._add_last_avail_date(y_index=resampled_y_df.index)
 
-        # split the `resampled_y_df` dates into different validation folds
+        # now the `resampled_y_df` dates are split into different validation folds
         self.split_idx_ = {f"fold_{i}": {"train": train, "valid": test} for i, (train, test) in enumerate(self.tscv.split(resampled_y_df.index))}
 
-        # the lagged `y` data (of all entities) are also used as explanatory variable, so it needs to be concatenated to that, according to the corresponding frequency
+        # the lagged `y` data is also used as explanatory variable, so it needs to be concatenated to that, according to the corresponding frequency
         for yk, yv in y.items():
             if yk in X:
                 X[yk] = pd.concat([X[yk], yv], axis=1)
@@ -517,56 +469,21 @@ class TFT(BaseEstimator, RegressorMixin):
                     pickle.dump(fit_data, file=f)
         else:
             fit_data = self._organise_data(X=X, y=resampled_y_df)
-
+    
         if self.verbose: print("Processing `X` and `y` data: concluded")
 
         # TODO: construct tscv
-        fold = "fold_0"
-
+        fold = "fold_4"
         # find how many continuous variables there are for each frequency
         self.n_features_in_ = {k: v.shape[-1] for k, v in fit_data[fold]["train"]["X_hist"].items()}
-
         # TODO: find all unique frequencies and calculate their time features
-
-        def _build_and_fit(fit_data, fold="fold_0"):
+        
+        def _build_and_fit(fit_data):
             self.model = self._build_model()
-
-            # fit_X_train_hist = {
-            #     k: pd.concat([v for _ in range(self.n_y_vars)], axis=0) 
-            #     for k, v in fit_data[fold]["train"]["X_hist"].items()
-            # }
-            # fit_X_train_fut = {
-            #     k: pd.concat([v for _ in range(self.n_y_vars)], axis=0) 
-            #     for k, v in fit_data[fold]["train"]["X_fut"].items()
-            # }
-            # fit_X_train = [fit_X_train_hist, fit_X_train_fut]
-            fit_X_train = [fit_data[fold]["train"]["X_hist"], fit_data[fold]["train"]["X_fut"]]
-
-            # fit_X_valid_hist = {
-            #     k: pd.concat([v for _ in range(self.n_y_vars)], axis=0) 
-            #     for k, v in fit_data[fold]["valid"]["X_hist"].items()
-            # }
-            # fit_X_valid_fut = {
-            #     k: pd.concat([v for _ in range(self.n_y_vars)], axis=0) 
-            #     for k, v in fit_data[fold]["valid"]["X_fut"].items()
-            # }
-            # fit_X_valid = [fit_X_valid_hist, fit_X_valid_fut]
-            fit_X_valid = [fit_data[fold]["valid"]["X_hist"], fit_data[fold]["valid"]["X_fut"]]
-            
-            entity = []
-            for e in self.entities:
-                if self.n_y_vars_ > 1:
-                    self.entity_to_index = {entity: idx for idx, entity in enumerate(self.entities)}
-                    entity.append(self.entity_to_index[e])
-                    entity = keras.ops.concatenate(entity)
-
-            fit_y_train = fit_data[fold]["train"]["y"][[e]]
-            fit_y_valid = fit_data[fold]["valid"]["y"][[e]]
-
             self.history_ = self.model.fit(
-                    x=fit_X_train + [entity],
-                    y=fit_y_train,
-                    validation_data=(fit_X_valid + entity, fit_y_valid),
+                    x=[fit_data[fold]["train"]["X_hist"], fit_data[fold]["train"]["X_fut"]],
+                    y=fit_data[fold]["train"]["y"],
+                    validation_data=([fit_data[fold]["valid"]["X_hist"], fit_data[fold]["valid"]["X_fut"]], fit_data[fold]["valid"]["y"]),
                     **self.fit_args
                 )
 
