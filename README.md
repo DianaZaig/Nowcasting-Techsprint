@@ -120,8 +120,6 @@ Building on the research conducted by the Bank of Tanzania (Barongo and Mbelwa),
 Metric RF MLP Hybrid RF-MLP ARIMA TFT
 Accuracy 98% 94% 96% Precision - Macro average 98% 94% 96% Precision - Weighted average 98% 94% 96% Recall - Macro average 98% 94% 96% Recall - Weighted average 98% 94% 96% F1 score - Macro average 98% 94% 96% F1 score - Weighted average 98% 94% 96% G-mean 98% 94% 96% Cohen’s Kappa 98% 92% 95% BA 98% 94% 96% Youden’s Index 95% 98% 90% AUC - Class 1 98% 95% 95% AUC - Class 2 97% 94% 95% AUC - Class 3 99% 95% 98% AUC - Class 4 100% 98% 99% AUC - Class 5 100% 99% 100% DP 2.6 2.3 2.6 Type I error 2% 3.7% 0.8% Type II error 3.2% 8.3% 9.1% NLiR 2% 4.1% 0.9%
 
-References: Rweyemamu Ignatius Barongo, Jimmy Tibangayuka Mbelwa, Using machine learning for detecting liquidity risk in banks, Machine Learning with Applications, Volume 15, 2024, 100511, ISSN 2666-8270, https://doi.org/10.1016/j.mlwa.2023.100511.
-
 ### Interpretability
 
 Interpretability of the model can be shown in two ways: (1) examining the importance of each input variable in prediction, (2) identifying any regimes or events that lead to significant changes in temporal dynamics.
@@ -143,7 +141,7 @@ We introduce TFT, a novel attention-based deep learning model for interpretable 
 1. Temporal Fusion Transformer (TFT; Lim et al, 2021) https://www.sciencedirect.com/science/article/pii/S0169207021000637
 2. Temporal Fusion Transformers for Interpretable Multi-horizon Time Series Forecasting - https://www.youtube.com/watch?v=M7O4VqRf8s4
 3. Interactive Python Notebook as a practical intro to the Lim et al TFT model:  https://github.com/dkgaraujo/TemporalFusionTransformers/blob/main/temporal_fusion_transformers.ipynb
-4. Using machine learning for detecting liquidity risk in banks – ScienceDirect https://www.sciencedirect.com/science/article/pii/S2666827023000646?via%3Dihub#sec6
+4. Using machine learning for detecting liquidity risk in banks, Barongo and Mbelwa, Volume 15, 2024 https://www.sciencedirect.com/science/article/pii/S2666827023000646?via%3Dihub#sec6
 5. Using Machine Learning to Detect Liquidity Risk In Commercial Banks | Code Ocean https://codeocean.com/capsule/5775871/tree/v1
 6. Gringado machine learning library for economics and finance https://bis-med-it.github.io/gingado
-
+ Using machine learning for detecting liquidity risk in banks, Machine Learning with Applications, Volume 15, 2024, 100511, ISSN 2666-8270, https://doi.org/10.1016/j.mlwa.2023.100511
