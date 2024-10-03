@@ -330,13 +330,13 @@ class TFT(BaseEstimator, RegressorMixin):
 
         output_lowest_quant = keras.layers.TimeDistributed(
             keras.layers.Dense(1),
-            name=f"output_q{str(self.quantiles[0])}"
+            name=f"output_q{str(self.quantiles[0]).replace('.','_')}"
         )(transformer_layer[Ellipsis, self.num_encoder_steps:, :])
 
         output_quant_deltas = [
             keras.layers.TimeDistributed(
                 keras.layers.Dense(1, activation="relu", use_bias=False),
-                name=f"output_delta_to_q{str(self.quantiles[i+1])}"
+                name=f"output_delta_to_q{str(self.quantiles[i+1]).replace('.','_')}"
             )(transformer_layer[Ellipsis, self.num_encoder_steps:, :])
             for i in range(num_quantiles - 1)
         ]
